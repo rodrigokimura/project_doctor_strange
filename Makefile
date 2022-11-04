@@ -1,0 +1,2 @@
+lint:
+	@pipenv run black .
