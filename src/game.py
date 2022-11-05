@@ -95,7 +95,7 @@ class Board:
         del cols
         return neighbours
 
-    def get_matching_cells(self, cell: Cell, exclude: List[Cell]) -> bool:
+    def get_matching_cells(self, cell: Cell, exclude: Set[Cell]) -> bool:
         matching_cells = {cell}
         for _cell in self.neighbours(cell.x + 1, cell.y + 1):
             if _cell in exclude:
@@ -103,7 +103,7 @@ class Board:
             if _cell == cell:
                 matching_cells.add(cell)
                 matching_cells = matching_cells.union(
-                    self.get_matching_cells(_cell, matching_cells)
+                    self.get_matching_cells(_cell, exclude.union(matching_cells))
                 )
         return matching_cells
 
@@ -120,11 +120,18 @@ class Game:
         self.board = board
         self.max_movements = max_movements
 
+    class InvalidCommand(Exception):
+        """Invalid command"""
+
     def play(self):
         while True:
             self.print_board()
             print(f"Movements left: {self.max_movements - self.movements}")
-            self.input_command(int(input("Enter position: ")))
+            try:
+                self.input_command(int(input("Enter position: ")))
+            except (ValueError, self.InvalidCommand):
+                print("Invalid command")
+                continue
             self.movements += 1
             if self.movements == self.max_movements:
                 print("Game over")
@@ -136,12 +143,13 @@ class Game:
     def print_board(self):
         print(self.board)
 
-    def input_command(self, position):
+    def input_command(self, position: int):
+        if position > self.board.size or position < 0:
+            raise self.InvalidCommand
         cell = game.board.get_cell(5, position)
         if cell.color == Color.E.value:
-            print("Invalid movement.")
-            return
-        cells = game.board.get_matching_cells(cell, [])
+            raise self.InvalidCommand
+        cells = game.board.get_matching_cells(cell, set())
         self.destroy_cells(cells)
         del cells
         del cell
