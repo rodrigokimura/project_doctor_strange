@@ -85,7 +85,6 @@ class Board:
             if neighbour == cell
         ]
 
-    @functools.lru_cache
     def get_matching_cells(self, cell: Cell, exclude: list[Cell]) -> bool:
         matching_cells = {cell}
         for _cell in self.neighbours(cell.x + 1, cell.y + 1):
@@ -93,7 +92,7 @@ class Board:
                 continue
             if _cell == cell:
                 matching_cells.add(cell)
-            matching_cells.union(self.get_matching_cells(_cell, matching_cells))
+                matching_cells.union(self.get_matching_cells(_cell, matching_cells))
         return matching_cells
 
 
@@ -122,7 +121,7 @@ if __name__ == "__main__":
     )
     game = Game(board)
     game.print_board()
-    cell = game.board.get_cell(5, 1)
+    cell = game.board.get_cell(5, 5)
     print(cell)
     cells = game.board.get_matching_cells(cell, [cell])
     print(cells)
