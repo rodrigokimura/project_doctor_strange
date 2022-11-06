@@ -1,6 +1,6 @@
 from colorama import Fore, Back, Style
 
-from typing import Tuple, List, Set
+from typing import Tuple, List, Set, Optional
 from enum import Enum
 import functools
 
@@ -46,6 +46,9 @@ class Cell:
     def coords(self) -> Tuple[int, int]:
         return self.x, self.y
 
+    def is_empty(self):
+        return self.color == Color.E
+
     @classmethod
     def empty(cls, x: int, y: int):
         cell = cls(Color.E)
@@ -54,10 +57,9 @@ class Cell:
 
 
 class Board:
-    size = 5
-
     def __init__(self, cells: Tuple[Tuple[Cell, ...], ...]) -> None:
         try:
+            self.size = len(cells)
             self._cells = [[0 for _ in range(self.size)] for _ in range(self.size)]
             for row in range(self.size):
                 for col in range(self.size):
@@ -65,7 +67,7 @@ class Board:
                     cell.x, cell.y = row, col
                     self._cells[row][col] = cell
         except IndexError:
-            raise ValueError(f"Board must be {self.size}x{self.size}")
+            raise ValueError("Board must be a square")
 
     def __str__(self) -> str:
         return "\n".join("".join(str(cell) for cell in row) for row in self._cells)
@@ -113,7 +115,7 @@ class Board:
 
 class Game:
     SIZE = 5
-    movements: int = 0
+    current_move: int = 0
     max_movements: int
 
     def __init__(self, board: Board, max_movements: int) -> None:
@@ -123,36 +125,48 @@ class Game:
     class InvalidCommand(Exception):
         """Invalid command"""
 
-    def play(self):
+    class NoOpCommand(Exception):
+        """Command does nothing"""
+
+    def play(self, inputs: Optional[List[int]] = None):
         while True:
             self.print_board()
-            print(f"Movements left: {self.max_movements - self.movements}")
-            try:
-                self.input_command(int(input("Enter position: ")))
-            except (ValueError, self.InvalidCommand):
-                print("Invalid command")
-                continue
-            self.movements += 1
-            if self.movements == self.max_movements:
-                print("Game over")
-                break
+            print(f"Movements left: {self.max_movements - self.current_move}")
+            if inputs:
+                try:
+                    self.execute_command(inputs[self.current_move])
+                except self.NoOpCommand:
+                    pass
+            else:
+                try:
+                    self.execute_command(int(input("Enter position: ")))
+                except (ValueError, self.InvalidCommand, self.NoOpCommand):
+                    print("Invalid, try again")
+                    continue
+            self.current_move += 1
             if self.board.is_empty():
-                print(f"Finished in {movements} movements.")
+                print(
+                    Fore.GREEN
+                    + f"VICTORY! Finished in {self.current_move} movements."
+                    + Style.RESET_ALL
+                )
+                return True
+            if self.current_move >= self.max_movements:
                 break
+        print(Fore.RED + "GAME OVER!" + Style.RESET_ALL)
+        return False
 
     def print_board(self):
         print(self.board)
 
-    def input_command(self, position: int):
+    def execute_command(self, position: int):
         if position > self.board.size or position < 0:
             raise self.InvalidCommand
-        cell = game.board.get_cell(5, position)
-        if cell.color == Color.E.value:
-            raise self.InvalidCommand
-        cells = game.board.get_matching_cells(cell, set())
+        cell = self.board.get_cell(5, position)
+        if cell.is_empty():
+            raise self.NoOpCommand
+        cells = self.board.get_matching_cells(cell, set())
         self.destroy_cells(cells)
-        del cells
-        del cell
 
     def destroy_cells(self, cells: Set[Cell]):
         cols = {cell.y for cell in cells}
@@ -165,13 +179,9 @@ class Game:
                 else:
                     self.board._cells[i][col] = new_cells[i - c]
                     new_cells[i - c].x = i
-        del cols
 
 
 if __name__ == "__main__":
-    import sys
-
-    sys.setrecursionlimit(500000)
     _c = Color
     game = Game(
         board=Board(
