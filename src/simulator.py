@@ -22,7 +22,7 @@ class Simulator:
                 board=Board(cells=self.initial_cells),
                 max_movements=MAX_MOVEMENTS,
             )
-            victory = game.play(inputs)
+            victory = game.run_inputs(inputs)
             if victory:
                 self.successful_sequences.append(inputs)
         print(f"Victorious possibilities found: {len(self.successful_sequences)}")

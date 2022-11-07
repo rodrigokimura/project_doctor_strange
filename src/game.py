@@ -1,6 +1,6 @@
 from colorama import Fore, Back, Style
 
-from typing import Tuple, List, Set, Optional
+from typing import Dict, List, Set, Optional, Tuple
 from enum import Enum
 import functools
 
@@ -15,8 +15,6 @@ class Color(Enum):
 
 class Cell:
     color: Color
-    x: int
-    y: int
 
     def __init__(self, color: Color) -> None:
         self.color = color
@@ -39,78 +37,72 @@ class Cell:
             return self.color == __o.color
         return False
 
-    def __hash__(self) -> int:
-        return hash((self.x, self.y))
-
-    @property
-    def coords(self) -> Tuple[int, int]:
-        return self.x, self.y
-
     def is_empty(self):
         return self.color == Color.E
 
     @classmethod
-    def empty(cls, x: int, y: int):
-        cell = cls(Color.E)
-        cell.x, cell.y = x, y
-        return cell
+    def empty(cls):
+        return cls(Color.E)
 
 
 class Board:
+    cells: Dict[Tuple[int, int], Cell] = {}
+
     def __init__(self, cells: Tuple[Tuple[Cell, ...], ...]) -> None:
         try:
             self.size = len(cells)
-            self._cells = [[0 for _ in range(self.size)] for _ in range(self.size)]
             for row in range(self.size):
                 for col in range(self.size):
                     cell = cells[row][col]
-                    cell.x, cell.y = row, col
-                    self._cells[row][col] = cell
+                    self.cells[(row, col)] = cell
         except IndexError:
             raise ValueError("Board must be a square")
 
     def __str__(self) -> str:
-        return "\n".join("".join(str(cell) for cell in row) for row in self._cells)
+        return "\n".join(
+            "".join(str(self.cells[(row, col)]) for col in range(self.size))
+            for row in range(self.size)
+        )
 
     def get_cell(self, row: int, col: int) -> Cell:
-        return self._cells[row - 1][col - 1]
+        return self.cells[(row, col)]
 
     def get_col(self, col: int):
-        return [self._cells[i][col] for i in range(self.size)]
+        return ((i, col) for i in range(self.size))
 
     def neighbours(self, row: int, col: int) -> List[Cell]:
         rows, cols = {row - 1, row + 1}, {col - 1, col + 1}
-        if row == 1:
+        if row == 0:
             rows.remove(row - 1)
-        if row == self.size:
+        if row == self.size - 1:
             rows.remove(row + 1)
-        if col == 1:
+        if col == 0:
             cols.remove(col - 1)
-        if col == self.size:
+        if col == self.size - 1:
             cols.remove(col + 1)
         neighbours = set()
         for _row in rows:
-            neighbours.add(self.get_cell(_row, col))
+            neighbours.add((_row, col))
         for _col in cols:
-            neighbours.add(self.get_cell(row, _col))
-        del rows
-        del cols
+            neighbours.add((row, _col))
         return neighbours
 
-    def get_matching_cells(self, cell: Cell, exclude: Set[Cell]) -> bool:
-        matching_cells = {cell}
-        for _cell in self.neighbours(cell.x + 1, cell.y + 1):
-            if _cell in exclude:
+    def get_matching_cells(
+        self, coords: Tuple[int, int], exclude: Set[Tuple[int, int]]
+    ) -> bool:
+        matching_cells = {coords}
+        for _coords in self.neighbours(*coords):
+            if _coords in exclude:
                 continue
-            if _cell == cell:
-                matching_cells.add(cell)
+            if self.get_cell(*_coords) == self.get_cell(*coords):
+                matching_cells.add(coords)
                 matching_cells = matching_cells.union(
-                    self.get_matching_cells(_cell, exclude.union(matching_cells))
+                    self.get_matching_cells(_coords, exclude.union(matching_cells))
                 )
         return matching_cells
 
     def is_empty(self):
-        return all(c.color == Color.E.value for row in self._cells for c in row)
+        return all(c.color == Color.E for c in self.cells.values())
 
 
 class Game:
@@ -156,43 +148,57 @@ class Game:
         print(Fore.RED + "GAME OVER!" + Style.RESET_ALL)
         return False
 
+    def run_inputs(self, inputs: Optional[List[int]] = None):
+        while True:
+            try:
+                self.execute_command(inputs[self.current_move])
+            except self.NoOpCommand:
+                pass
+            self.current_move += 1
+            if self.board.is_empty():
+                return True
+            if self.current_move >= self.max_movements:
+                break
+        return False
+
     def print_board(self):
         print(self.board)
 
     def execute_command(self, position: int):
         if position > self.board.size or position < 0:
             raise self.InvalidCommand
-        cell = self.board.get_cell(5, position)
+        cell = self.board.get_cell(4, position - 1)
         if cell.is_empty():
             raise self.NoOpCommand
-        cells = self.board.get_matching_cells(cell, set())
-        self.destroy_cells(cells)
+        cell_coords_to_destroy = self.board.get_matching_cells((4, position - 1), set())
+        self.destroy_cells(cell_coords_to_destroy)
 
-    def destroy_cells(self, cells: Set[Cell]):
-        cols = {cell.y for cell in cells}
+    def destroy_cells(self, coords: Set[Tuple[int, int]]):
+        cols = {coord[1] for coord in coords}
         for col in cols:
-            c = len([c for c in cells if c.y == col])
-            new_cells = [c for c in self.board.get_col(col) if c not in cells]
+            c = len([c for c in coords if c[1] == col])
+            new_cells = [
+                self.board.get_cell(*c)
+                for c in self.board.get_col(col)
+                if c not in coords
+            ]
             for i in range(self.board.size):
-                if i < c:
-                    self.board._cells[i][col] = Cell.empty(i, col)
-                else:
-                    self.board._cells[i][col] = new_cells[i - c]
-                    new_cells[i - c].x = i
+                self.board.cells[(i, col)] = Cell.empty() if i < c else new_cells[i - c]
 
 
 if __name__ == "__main__":
     _c = Color
+    # possible solution: 143521421
     game = Game(
         board=Board(
             cells=(
-                (Cell(_c.W), Cell(_c.Y), Cell(_c.C), Cell(_c.M), Cell(_c.Y)),
-                (Cell(_c.Y), Cell(_c.Y), Cell(_c.C), Cell(_c.M), Cell(_c.C)),
-                (Cell(_c.W), Cell(_c.W), Cell(_c.Y), Cell(_c.C), Cell(_c.Y)),
-                (Cell(_c.Y), Cell(_c.M), Cell(_c.M), Cell(_c.C), Cell(_c.W)),
-                (Cell(_c.C), Cell(_c.C), Cell(_c.Y), Cell(_c.M), Cell(_c.W)),
+                (Cell(_c.C), Cell(_c.W), Cell(_c.Y), Cell(_c.M), Cell(_c.M)),
+                (Cell(_c.Y), Cell(_c.Y), Cell(_c.Y), Cell(_c.Y), Cell(_c.Y)),
+                (Cell(_c.W), Cell(_c.M), Cell(_c.M), Cell(_c.M), Cell(_c.C)),
+                (Cell(_c.Y), Cell(_c.W), Cell(_c.M), Cell(_c.C), Cell(_c.M)),
+                (Cell(_c.C), Cell(_c.W), Cell(_c.M), Cell(_c.W), Cell(_c.C)),
             )
         ),
-        max_movements=10,
+        max_movements=9,
     )
     game.play()
