@@ -104,6 +104,9 @@ class Board:
     def is_empty(self):
         return all(c.color == Color.E for c in self.cells.values())
 
+    def count_remaining_cells(self):
+        return len([c for c in self.cells.values() if not c.is_empty()])
+
 
 class Game:
     SIZE = 5
