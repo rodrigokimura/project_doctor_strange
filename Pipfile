@@ -9,3 +9,4 @@ colorama = "*"
 [dev-packages]
 black = "*"
 pytest = "*"
+isort = "*"

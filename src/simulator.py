@@ -1,7 +1,7 @@
 import asyncio
+import random
 from itertools import product
 from typing import List, Tuple
-import random
 
 from game import Board, Cell, Color, Game
 
@@ -24,7 +24,7 @@ class Simulator:
                 board=Board(cells=self.initial_cells),
                 max_movements=MAX_MOVEMENTS,
             )
-            victory = game.run_inputs(inputs)
+            victory = game.run_sequence(inputs)
             if victory:
                 self.successful_sequences.append(inputs)
         print(f"Victorious possibilities found: {len(self.successful_sequences)}")
@@ -64,11 +64,11 @@ class AsyncIOSimulator:
 
 
 class GeneticSimulator:
-    max_iterations = 100000
-    population_size = 1000
+    max_iterations = 1000
+    population_size = 100
     population = {}
-    mutation_rate = 0.01
-    selection_threshold = 10
+    mutation_rate = 1
+    selection_threshold = 50
 
     def __init__(self, initial_cells: Tuple[Tuple[Cell, ...], ...]):
         self.initial_cells = initial_cells
@@ -85,7 +85,7 @@ class GeneticSimulator:
         print(f"No solution found after {self.max_iterations} iterations")
 
     def generate_initial_population(self):
-        for _ in range(100):
+        for _ in range(self.population_size):
             inputs = tuple(random.randint(1, 5) for _ in range(10))
             self.population[inputs] = self.run_game(inputs)
 
@@ -94,7 +94,7 @@ class GeneticSimulator:
             board=Board(cells=self.initial_cells),
             max_movements=10,
         )
-        game.run_inputs(inputs)
+        game.run_sequence(inputs)
         return game.board.count_remaining_cells()
 
     def get_solution(self):
@@ -104,8 +104,9 @@ class GeneticSimulator:
 
     def generate_next_population(self):
         parents = self.get_best_parents(self.selection_threshold)
+        worst_parents = self.get_worst_parents(self.selection_threshold)
         children = self.generate_children(parents)
-        for p in parents:
+        for p in worst_parents:
             self.population.pop(p)
         for c in children:
             self.population[c] = self.run_game(c)
@@ -114,6 +115,14 @@ class GeneticSimulator:
         return tuple(
             k
             for k, _ in sorted(self.population.items(), key=lambda x: x[1])[
+                : (2 * couples)
+            ]
+        )
+
+    def get_worst_parents(self, couples):
+        return tuple(
+            k
+            for k, _ in sorted(self.population.items(), key=lambda x: -x[1])[
                 : (2 * couples)
             ]
         )
@@ -149,7 +158,7 @@ async def run_simulation(
         board=Board(cells=cells),
         max_movements=max_movements,
     )
-    victory = game.run_inputs(inputs)
+    victory = game.run_sequence(inputs)
     if victory:
         successful_sequences.append(inputs)
     print(".", end="", flush=True)
@@ -159,11 +168,11 @@ if __name__ == "__main__":
     _c = Color
     simulator = GeneticSimulator(
         initial_cells=(
-            (Cell(_c.W), Cell(_c.Y), Cell(_c.M), Cell(_c.Y), Cell(_c.W)),
-            (Cell(_c.W), Cell(_c.C), Cell(_c.W), Cell(_c.W), Cell(_c.C)),
-            (Cell(_c.W), Cell(_c.Y), Cell(_c.W), Cell(_c.C), Cell(_c.C)),
-            (Cell(_c.W), Cell(_c.W), Cell(_c.Y), Cell(_c.W), Cell(_c.M)),
-            (Cell(_c.C), Cell(_c.M), Cell(_c.W), Cell(_c.W), Cell(_c.M)),
+            (Cell(_c.W), Cell(_c.Y), Cell(_c.W), Cell(_c.M), Cell(_c.W)),
+            (Cell(_c.M), Cell(_c.W), Cell(_c.W), Cell(_c.M), Cell(_c.Y)),
+            (Cell(_c.Y), Cell(_c.M), Cell(_c.Y), Cell(_c.W), Cell(_c.Y)),
+            (Cell(_c.Y), Cell(_c.M), Cell(_c.W), Cell(_c.M), Cell(_c.W)),
+            (Cell(_c.W), Cell(_c.W), Cell(_c.C), Cell(_c.Y), Cell(_c.M)),
         ),
     )
     simulator.run()

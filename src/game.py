@@ -1,8 +1,7 @@
-from colorama import Fore, Back, Style
-
-from typing import Dict, List, Set, Optional, Tuple
 from enum import Enum
-import functools
+from typing import Dict, List, Optional, Set, Tuple
+
+from colorama import Back, Fore, Style
 
 
 class Color(Enum):
@@ -30,7 +29,7 @@ class Cell:
         return f"{colors[self.color][0]}{colors[self.color][1]}   {Style.RESET_ALL}"
 
     def __repr__(self) -> str:
-        return f"Cell({self.color}, ({self.x +1}, {self.y + 1}))"
+        return f"Cell({self.color})"
 
     def __eq__(self, __o: object) -> bool:
         if isinstance(__o, Cell):
@@ -70,7 +69,7 @@ class Board:
     def get_col(self, col: int):
         return ((i, col) for i in range(self.size))
 
-    def neighbours(self, row: int, col: int) -> List[Cell]:
+    def get_neighbours(self, row: int, col: int) -> List[Cell]:
         rows, cols = {row - 1, row + 1}, {col - 1, col + 1}
         if row == 0:
             rows.remove(row - 1)
@@ -91,7 +90,7 @@ class Board:
         self, coords: Tuple[int, int], exclude: Set[Tuple[int, int]]
     ) -> bool:
         matching_cells = {coords}
-        for _coords in self.neighbours(*coords):
+        for _coords in self.get_neighbours(*coords):
             if _coords in exclude:
                 continue
             if self.get_cell(*_coords) == self.get_cell(*coords):
@@ -123,21 +122,15 @@ class Game:
     class NoOpCommand(Exception):
         """Command does nothing"""
 
-    def play(self, inputs: Optional[List[int]] = None):
+    def play(self):
         while True:
             self.print_board()
             print(f"Movements left: {self.max_movements - self.current_move}")
-            if inputs:
-                try:
-                    self.execute_command(inputs[self.current_move])
-                except self.NoOpCommand:
-                    pass
-            else:
-                try:
-                    self.execute_command(int(input("Enter position: ")))
-                except (ValueError, self.InvalidCommand, self.NoOpCommand):
-                    print("Invalid, try again")
-                    continue
+            try:
+                self.execute_command(int(input("Enter position: ")))
+            except (ValueError, self.InvalidCommand, self.NoOpCommand):
+                print("Invalid, try again")
+                continue
             self.current_move += 1
             if self.board.is_empty():
                 print(
@@ -151,7 +144,7 @@ class Game:
         print(Fore.RED + "GAME OVER!" + Style.RESET_ALL)
         return False
 
-    def run_inputs(self, inputs: Optional[List[int]] = None):
+    def run_sequence(self, inputs: Optional[List[int]] = None):
         while True:
             try:
                 self.execute_command(inputs[self.current_move])
@@ -168,7 +161,7 @@ class Game:
         print(self.board)
 
     def execute_command(self, position: int):
-        if position > self.board.size or position < 0:
+        if position > self.board.size or position <= 0:
             raise self.InvalidCommand
         cell = self.board.get_cell(4, position - 1)
         if cell.is_empty():
@@ -179,14 +172,18 @@ class Game:
     def destroy_cells(self, coords: Set[Tuple[int, int]]):
         cols = {coord[1] for coord in coords}
         for col in cols:
-            c = len([c for c in coords if c[1] == col])
+            cells_to_destroy = len([c for c in coords if c[1] == col])
             new_cells = [
-                self.board.get_cell(*c)
-                for c in self.board.get_col(col)
-                if c not in coords
+                self.board.get_cell(row, col)
+                for row in range(self.board.size)
+                if (row, col) not in coords
             ]
-            for i in range(self.board.size):
-                self.board.cells[(i, col)] = Cell.empty() if i < c else new_cells[i - c]
+            for row in range(self.board.size):
+                self.board.cells[(row, col)] = (
+                    Cell.empty()
+                    if row < cells_to_destroy
+                    else new_cells[row - cells_to_destroy]
+                )
 
 
 if __name__ == "__main__":
