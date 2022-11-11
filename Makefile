@@ -9,3 +9,6 @@ play:
 
 simulate:
 	@pipenv run python src/simulator.py
+
+qa:
+	@pipenv run pytest
